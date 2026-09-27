@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Crypto Portfolio</title>
+<script>
+(function(){
+  try {
+    var t = localStorage.getItem('ledger-theme');
+    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+})();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root{
+    --cream:#F4F1EA;
+    --paper:#FBF9F4;
+    --ink:#26201A;
+    --ink-soft:#726A5C;
+    --ink-faint:#A79E8D;
+    --line:#E3DCCB;
+    --line-soft:#ECE6D8;
+    --clay:#D97757;
+    --clay-dark:#BC5E3F;
+    --clay-tint:#F4DECC;
+    --moss:#5D7350;
+    --moss-tint:#E1E9D6;
+    --rust:#B4483A;
+    --rust-tint:#F3DAD4;
+    --amber:#A97327;
+    --amber-tint:#F1E3C4;
+    --cut-bg:var(--rust-tint); --cut-text:#7c2f22;
+    --reduce-bg:var(--clay-tint); --reduce-text:var(--clay-dark);
+    --topup-bg:var(--moss-tint); --topup-text:#3c4d33;
+    --font-serif:'Source Serif 4', Georgia, serif;
+    --font-sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono:'JetBrains Mono', 'Courier New', monospace;
+  }
+  :root[data-theme="dark"]{
+    --cream:#1B1815;
+    --paper:#242019;
+    --ink:#F0EAE0;
+    --ink-soft:#B5AC9C;
+    --ink-faint:#837A6B;
+    --line:#382F27;
+    --line-soft:#2C2721;
+    --clay:#E2895F;
+    --clay-dark:#F0AE8B;
+    --clay-tint:rgba(226,137,95,0.16);
+    --moss:#8FBB7D;
+    --moss-tint:rgba(143,187,125,0.16);
+    --rust:#E08C7E;
+    --rust-tint:rgba(224,140,126,0.16);
+    --amber:#E0B563;
+    --amber-tint:rgba(224,181,99,0.16);
+    --cut-bg:rgba(224,140,126,0.16); --cut-text:#F2B6AC;
+    --reduce-bg:rgba(226,137,95,0.16); --reduce-text:#F0B78E;
+    --topup-bg:rgba(143,187,125,0.16); --topup-text:#BFE0AE;
+  }
+  *{box-sizing:border-box;}
+  body{transition:background-color .2s, color .2s;}
+  body{
+    margin:0; background:var(--cream); color:var(--ink);
+    font-family:var(--font-sans); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px 64px;}
+
+  /* Header */
+  header{border-bottom:1px solid var(--line); background:var(--paper);}
+  .header-inner{max-width:1180px; margin:0 auto; padding:20px 28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;}
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand h1{font-family:var(--font-serif); font-weight:600; font-size:22px; margin:0; letter-spacing:-0.01em;}
+  .brand span{font-size:12px; color:var(--ink-soft);}
+  .header-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .currency-toggle{display:flex; background:var(--cream); border:1px solid var(--line); border-radius:8px; padding:3px;}
+  .currency-toggle button{border:none; background:none; font:inherit; font-size:12px; font-weight:600; padding:6px 12px; border-radius:6px; cursor:pointer; color:var(--ink-soft);}
+  .currency-toggle button.active{background:var(--ink); color:var(--paper);}
+  
+  .sync-btn{display:flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--cream); border-radius:8px; padding:7px 12px; font:inherit; font-size:12px; color:var(--ink-soft); cursor:pointer; transition:all .15s;}
+  .sync-btn:hover{border-color:var(--clay); color:var(--ink);}
+  .sync-btn.primary-action{background:var(--clay-tint); border-color:var(--clay); color:var(--clay-dark); font-weight:600;}
+  .sync-dot{width:6px; height:6px; border-radius:50%; background:var(--moss); flex-shrink:0;}
+  .sync-dot.busy{background:var(--clay); animation:pulse 1s ease-in-out infinite;}
+  .sync-dot.offline{background:var(--amber);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .fa-rotate.spin{animation:spin 0.9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* Layout blocks */
+  section.block{margin-top:36px;}
+  .block-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
+  .block-head h2{font-family:var(--font-serif); font-size:19px; font-weight:600; margin:0;}
+  .block-head p{margin:2px 0 0; font-size:12.5px; color:var(--ink-soft);}
+
+  /* Summary strip */
+  .summary{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-top:30px;}
+  .summary .cell{background:var(--paper); padding:20px 22px;}
+  .summary .label{font-size:11.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;}
+  .summary .value{font-family:var(--font-serif); font-size:27px; font-weight:600; letter-spacing:-0.01em;}
+  .summary .sub{font-size:12px; color:var(--ink-soft); margin-top:5px;}
+  .up{color:var(--moss);} .down{color:var(--rust);}
+
+  /* Grid: form + chart */
+  .split{display:grid; grid-template-columns:0.85fr 1.15fr; gap:22px;}
+  @media (max-width:860px){ .split{grid-template-columns:1fr;} .summary{grid-template-columns:repeat(2,1fr);} }
+  .card{background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px;}
+
+  form .field{margin-bottom:16px;}
+  form label{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+  form input, form select{
+    width:100%; font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--line);
+    border-radius:8px; background:var(--cream); color:var(--ink);
+  }
+  form input:focus, form select:focus{outline:none; border-color:var(--clay);}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  button.primary{
+    width:100%; background:var(--clay); color:#fff; border:none; border-radius:8px; padding:12px 16px;
+    font:inherit; font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:background .15s;
+  }
+  button.primary:hover{background:var(--clay-dark);}
+  button.primary:disabled{opacity:.6; cursor:default;}
+  .hint{font-size:11.5px; color:var(--ink-faint); margin-top:14px; display:flex; gap:6px; align-items:flex-start;}
+  .form-error{display:none; background:var(--rust-tint); border:1px solid #e3b6ac; color:#7c2f22; font-size:12.5px; padding:10px 12px; border-radius:8px; margin-bottom:14px;}
+
+  .chart-total{font-size:12px; color:var(--ink-soft); font-family:var(--font-mono);}
+  .chart-holder{position:relative; min-height:260px; display:flex; align-items:center; justify-content:center;}
+  .chart-empty{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--ink-faint); text-align:center;}
+  .chart-empty i{font-size:22px; margin-bottom:8px;}
+
+  /* Table */
+  table{width:100%; border-collapse:collapse;}
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-soft); font-weight:600; padding:0 14px 10px; border-bottom:1px solid var(--line);
+  }
+  thead th.num{text-align:right;} thead th.mid{text-align:center;}
+  tbody td{padding:14px; border-bottom:1px solid var(--line-soft); vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:rgba(217,119,87,0.035);}
+  .num{text-align:right;} .mid{text-align:center;}
+  .coin-name{display:flex; align-items:center; gap:10px;}
+  .coin-badge{width:34px; height:34px; border-radius:9px; background:var(--clay-tint); color:var(--clay-dark); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:10.5px; flex-shrink:0;}
+  .coin-name .meta{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+  .fa-num{font-size:10px; background:var(--cream); border:1px solid var(--line); border-radius:5px; padding:1px 6px; margin-left:6px; color:var(--ink-soft); font-weight:600;}
+  .mono{font-family:var(--font-mono);}
+  .price-cell{transition:background-color .8s;}
+  .price-flash{background-color:var(--moss-tint);}
+  .src-row{display:flex; align-items:center; justify-content:flex-end; gap:6px;}
+  .src-dot{width:6px; height:6px; border-radius:50%; flex-shrink:0;}
+  .src-dot.live{background:var(--moss);} .src-dot.offline{background:var(--amber);}
+  .src-label{font-size:9.5px; color:var(--ink-faint); margin-top:2px; text-align:right;}
+  .price-edit-btn{border:none; background:none; color:var(--ink-faint); cursor:pointer; padding:2px 4px; font-size:10px;}
+  .price-edit-btn:hover{color:var(--clay);}
+  .price-input{width:88px; font-family:var(--font-mono); font-size:12px; padding:4px 6px; border:1px solid var(--clay); border-radius:5px;}
+
+  .pill{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:5px 10px; border-radius:20px; border:1px solid transparent; white-space:nowrap;}
+  .pill.hold{background:var(--cream); color:var(--ink-soft); border-color:var(--line);}
+  .pill.cut{background:var(--cut-bg); color:var(--cut-text);}
+  .pill.reduce{background:var(--reduce-bg); color:var(--reduce-text);}
+  .pill.topup{background:var(--topup-bg); color:var(--topup-text);}
+  .advice{font-size:10.5px; color:var(--ink-faint); margin-top:5px; max-width:180px; line-height:1.35;}
+
+  .targets{display:flex; flex-direction:column; gap:4px; font-family:var(--font-mono); font-size:10.5px;}
+  .targets span{padding:2px 7px; border-radius:5px; display:inline-flex; align-items:center; justify-content:space-between; gap:6px;}
+  .t-buy{background:var(--topup-bg); color:var(--topup-text);}
+  .t-exit{background:var(--reduce-bg); color:var(--reduce-text);}
+  .t-stop{background:var(--cut-bg); color:var(--cut-text);}
+
+  .icon-btn{border:1px solid var(--line); background:var(--cream); color:var(--ink-soft); width:32px; height:32px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s;}
+  .icon-btn:hover{border-color:var(--clay); color:var(--clay-dark);}
+  .icon-btn.danger:hover{border-color:var(--rust); color:var(--rust);}
+  .row-actions{display:flex; gap:6px; justify-content:center;}
+  .dd-btn{border:1px solid var(--line); background:var(--cream); color:var(--ink-soft); border-radius:8px; padding:0 12px; height:32px; font:inherit; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+  .dd-btn:hover{border-color:var(--clay); color:var(--clay-dark);}
+
+  .empty-state{padding:56px 20px; text-align:center; color:var(--ink-soft);}
+  .empty-state i{font-size:26px; color:var(--ink-faint); margin-bottom:10px;}
+  .empty-state p.big{font-weight:600; color:var(--ink); margin:0 0 4px;}
+
+  /* Diagnostics */
+  .diag{border:1px solid var(--line); border-radius:12px; background:var(--paper); overflow:hidden;}
+  .diag summary{cursor:pointer; padding:16px 22px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; list-style:none;}
+  .diag summary::-webkit-details-marker{display:none;}
+  .diag summary i{color:var(--ink-faint); transition:transform .15s;}
+  .diag[open] summary i{transform:rotate(90deg);}
+  .diag-body{padding:0 22px 20px; border-top:1px solid var(--line-soft);}
+  .diag-body p{font-size:12px; color:var(--ink-soft); margin:14px 0;}
+  .diag-log{font-family:var(--font-mono); font-size:11.5px; max-height:220px; overflow-y:auto; background:var(--cream); border:1px solid var(--line); border-radius:8px;}
+  .diag-log .row{display:flex; gap:10px; padding:7px 12px; border-bottom:1px solid var(--line-soft);}
+  .diag-log .row:last-child{border-bottom:none;}
+  .diag-log .ok{color:var(--moss);} .diag-log .fail{color:var(--rust);}
+  .diag-log .t{color:var(--ink-faint); flex-shrink:0;}
+
+  /* Toasts */
+  #toasts{position:fixed; top:20px; right:20px; z-index:90; display:flex; flex-direction:column; gap:10px; max-width:340px;}
+  .toast{background:#26201A; color:#FBF9F4; border-radius:9px; padding:12px 14px; font-size:12.5px; display:flex; gap:10px; align-items:flex-start; box-shadow:0 8px 20px rgba(0,0,0,.28); opacity:0; transform:translateY(-6px); transition:all .25s;}
+  .toast.show{opacity:1; transform:translateY(0);}
+  .toast i{margin-top:1px;}
+  .toast.success i{color:#8CC38A;} .toast.warning i{color:#E5B65C;} .toast.error i{color:#E38A7A;} .toast.info i{color:#9BB6E0;}
+
+  /* Modal */
+  .modal-bg{position:fixed; inset:0; background:rgba(38,32,26,.55); display:none; align-items:center; justify-content:center; padding:20px; z-index:80;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--paper); border-radius:14px; max-width:640px; width:100%; max-height:88vh; overflow-y:auto; border:1px solid var(--line);}
+  .modal-head{display:flex; align-items:center; justify-content:space-between; padding:20px 22px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--paper); z-index:2;}
+  .modal-head .coin-badge{width:38px; height:38px; font-size:12px;}
+  .modal-head h3{font-family:var(--font-serif); font-size:17px; margin:0;}
+  .modal-head .close{border:none; background:none; color:var(--ink-soft); cursor:pointer; font-size:16px;}
+  .modal-body{padding:22px; display:flex; flex-direction:column; gap:20px;}
+  .action-banner{border-radius:10px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .levels-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:10px;}
+  .level-box{background:var(--cream); border:1px solid var(--line); border-radius:9px; padding:10px 12px;}
+  .level-box .l{font-size:9.5px; text-transform:uppercase; color:var(--ink-faint); letter-spacing:.03em;}
+  .level-box .v{font-family:var(--font-mono); font-weight:600; margin-top:4px; font-size:13px;}
+  .fa-health{background:var(--cream); border:1px solid var(--line); border-radius:9px; padding:14px; font-size:12px;}
+  .fa-bar{background:var(--line-soft); height:6px; border-radius:99px; overflow:hidden; margin:8px 0;}
+  .fa-bar-fill{height:100%; background:linear-gradient(90deg,var(--clay),var(--moss));}
+  .rule-note{background:var(--clay-tint); border-radius:9px; padding:12px 14px; font-size:11.5px; color:var(--clay-dark); display:flex; gap:8px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <h1>Ledger</h1>
+      <span>Quantitative crypto tracker</span>
+    </div>
+    <div class="header-controls">
+      <div class="currency-toggle">
+        <button id="btnUSD" class="active" onclick="setCurrency('USD')">USD</button>
+        <button id="btnMYR" onclick="setCurrency('MYR')">MYR</button>
+      </div>
+
+      <!-- Persistence Actions: Save, Export, Import -->
+      <button class="sync-btn primary-action" onclick="manualSavePortfolio()" title="Save current portfolio to browser storage">
+        <i class="fa-solid fa-floppy-disk"></i>
+        <span>Save</span>
+      </button>
+      <button class="sync-btn" onclick="exportPortfolioToFile()" title="Export portfolio to a JSON backup file">
+        <i class="fa-solid fa-file-export"></i>
+        <span>Export</span>
+      </button>
+      <button class="sync-btn" onclick="triggerImportFileInput()" title="Import portfolio from JSON backup file">
+        <i class="fa-solid fa-file-import"></i>
+        <span>Import</span>
+      </button>
+      <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="handlePortfolioImport(event)">
+
+      <button class="sync-btn" onclick="refreshExchangeRate(false)" title="Force-refresh the live USD/MYR rate">
+        <span id="fxDot" class="sync-dot"></span>
+        <span id="fxLabel">Loading rate…</span>
+      </button>
+      <button class="sync-btn" onclick="toggleTheme()" title="Toggle dark mode" style="padding:7px 10px;">
+        <i id="themeIcon" class="fa-solid fa-moon"></i>
+      </button>
+      <button class="sync-btn" onclick="refreshAllLivePrices(false)" title="Force a live refresh now">
+        <span id="syncDot" class="sync-dot"></span>
+        <span id="syncLabel">Syncing…</span>
+        <i id="syncIcon" class="fa-solid fa-rotate"></i>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div id="toasts"></div>
+
+<div class="wrap">
+
+  <section class="summary">
+    <div class="cell">
+      <div class="label">Portfolio value</div>
+      <div id="totalValue" class="value">$0.00</div>
+      <div class="sub">Net capital across assets</div>
+    </div>
+    <div class="cell">
+      <div class="label">Net P&amp;L</div>
+      <div id="totalPnl" class="value">$0.00</div>
+      <div class="sub"><span id="totalReturnPct">+0.00%</span> unrealized</div>
+    </div>
+    <div class="cell">
+      <div class="label">Tracked coins</div>
+      <div id="activeCount" class="value">0</div>
+      <div class="sub">Persistent holdings</div>
+    </div>
+    <div class="cell">
+      <div class="label">Rebalance status</div>
+      <div id="statusValue" class="value" style="font-size:19px;">Balanced</div>
+      <div class="sub"><span id="actionCount">0</span> signals need attention</div>
+    </div>
+  </section>
+
+  <section class="block split">
+    <div class="card">
+      <div class="block-head">
+        <div><h2>Add a position</h2><p>Calculates dynamic entry, exit, and top-up levels</p></div>
+      </div>
+      <div id="formError" class="form-error"></div>
+      <form id="addForm">
+        <div class="field">
+          <label for="symbol">Coin symbol</label>
+          <input id="symbol" required placeholder="BTC, ETH, SOL, LINK, SUI…" autocomplete="off" style="text-transform:uppercase;">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="quantity">Quantity</label>
+            <input id="quantity" type="number" required min="0.00000001" step="any" placeholder="0.5">
+          </div>
+          <div class="field">
+            <label id="entryLabel" for="entryPrice">Avg entry (USD)</label>
+            <input id="entryPrice" type="number" required min="0.00000001" step="any" placeholder="65000">
+          </div>
+        </div>
+        <div class="field">
+          <label for="strategy">Strategy profile</label>
+          <select id="strategy">
+            <option value="Conservative">Conservative — tight DCA tiers, -8% stop, TP1 +14%</option>
+            <option value="Aggressive">Aggressive — wide swing DCA, -18% stop, TP2 +50%</option>
+          </select>
+        </div>
+        <button type="submit" id="submitBtn" class="primary"><i class="fa-solid fa-microchip"></i> Run analysis &amp; save</button>
+      </form>
+      <div class="hint"><i class="fa-solid fa-shield-halved"></i> Automatically saved to your local browser storage.</div>
+    </div>
+
+    <div class="card">
+      <div class="block-head">
+        <div><h2>Capital weighting</h2><p>Live allocation across assets</p></div>
+        <span id="chartTotalLabel" class="chart-total">Total: $0.00</span>
+      </div>
+      <div class="chart-holder">
+        <canvas id="allocationChart"></canvas>
+        <div id="chartEmpty" class="chart-empty">
+          <i class="fa-solid fa-coins"></i>
+          <p class="big" style="font-weight:600;color:var(--ink);margin:0;">No positions yet</p>
+          <p style="margin:4px 0 0;">Add a coin on the left to see weighting</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head">
+      <div><h2>Positions &amp; signals</h2><p>Multi-tier DCA top-up, resistance exit, and capital preservation targets</p></div>
+      <div>
+        <button class="sync-btn" style="font-size:11.5px; padding:5px 10px;" onclick="resetToSampleTemplate()" title="Reset portfolio to starter coins">Load sample</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0;">
+      <div style="overflow-x:auto;">
+        <table id="posTable">
+          <thead>
+            <tr>
+              <th>Asset</th><th class="num">Holdings</th><th class="num">Avg entry</th>
+              <th class="num">Live price</th><th class="num">Net P&amp;L</th>
+              <th class="mid">Target levels</th><th class="mid">Action signal</th><th class="mid">Chart</th><th class="mid"></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyTable" class="empty-state" style="display:none;">
+        <i class="fa-solid fa-folder-open"></i>
+        <p class="big">Your portfolio is empty</p>
+        <p style="margin:0;">Add a coin above or click "Import" to load a saved backup.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <details class="diag">
+      <summary><i class="fa-solid fa-chevron-right"></i> Feed diagnostics &amp; source resolution</summary>
+      <div class="diag-body">
+        <p>If a price ever looks wrong or frozen, check here first. Each line shows which feed was queried and what it returned.</p>
+        <div id="diagLog" class="diag-log"></div>
+      </div>
+    </details>
+  </section>
+
+</div>
+
+<div id="modalBg" class="modal-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div id="modalBadge" class="coin-badge">BTC</div>
+        <div>
+          <h3 id="modalTitle">Dossier</h3>
+          <p id="modalSub" style="margin:2px 0 0; font-size:11.5px; color:var(--ink-soft);"></p>
+        </div>
+      </div>
+      <button class="close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="modalBody" class="modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* ============ State & Storage ============ */
+const STORAGE_PORTFOLIO_KEY = 'ledger-crypto-portfolio-v3';
+const STORAGE_CURRENCY_KEY = 'ledger-currency';
+const STORAGE_INITIALIZED_KEY = 'ledger-initialized-v3';
+
+let portfolio = [];
+let chartInstance = null;
+let currentCurrency = 'USD';
+let EXCHANGE_RATE_MYR = 4.30;
+let fxIsLive = false;
+let fxReady = false;
+let fxSource = 'Static fallback';
+const chartColors = ['#D97757','#5D7350','#B4483A','#A97327','#8B6F9E','#6E8F9E','#C99A5B','#7A6F5D'];
+
+const formatters = {
+  USD: new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', minimumFractionDigits:2, maximumFractionDigits:2}),
+  MYR: new Intl.NumberFormat('en-MY', {style:'currency', currency:'MYR', minimumFractionDigits:2, maximumFractionDigits:2}),
+  USD_Price: new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', minimumFractionDigits:2, maximumFractionDigits:6}),
+  MYR_Price: new Intl.NumberFormat('en-MY', {style:'currency', currency:'MYR', minimumFractionDigits:2, maximumFractionDigits:6})
+};
+function formatMoney(v, isPrice=false){
+  const val = currentCurrency === 'MYR' ? v * EXCHANGE_RATE_MYR : v;
+  return formatters[currentCurrency + (isPrice ? '_Price':'')].format(val);
+}
+
+/* ============ DOM refs ============ */
+const form = document.getElementById('addForm');
+const submitBtn = document.getElementById('submitBtn');
+const formError = document.getElementById('formError');
+const tableBody = document.getElementById('tableBody');
+const toasts = document.getElementById('toasts');
+const syncLabel = document.getElementById('syncLabel');
+const syncIcon = document.getElementById('syncIcon');
+const syncDot = document.getElementById('syncDot');
+const diagLog = document.getElementById('diagLog');
+
+function showToast(msg, type='info'){
+  const icons = {info:'fa-circle-info', success:'fa-circle-check', warning:'fa-triangle-exclamation', error:'fa-circle-xmark'};
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<i class="fa-solid ${icons[type]||icons.info}"></i><span>${msg}</span>`;
+  toasts.appendChild(el);
+  requestAnimationFrame(()=> el.classList.add('show'));
+  setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(),250); }, 3800);
+}
+function showFormError(msg){ formError.textContent = msg; formError.style.display='block'; }
+function clearFormError(){ formError.style.display='none'; }
+
+/* ============ Storage: Save, Export, Import ============ */
+function persistPortfolioLocally(){
+  try {
+    localStorage.setItem(STORAGE_PORTFOLIO_KEY, JSON.stringify(portfolio));
+    localStorage.setItem(STORAGE_INITIALIZED_KEY, 'true');
+    localStorage.setItem(STORAGE_CURRENCY_KEY, currentCurrency);
+  } catch (e) {
+    console.error('Failed to persist to localStorage', e);
+  }
+}
+
+function loadPortfolioLocally(){
+  try {
+    const raw = localStorage.getItem(STORAGE_PORTFOLIO_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        portfolio = parsed;
+        return true;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse portfolio from localStorage', e);
+  }
+  return false;
+}
+
+window.manualSavePortfolio = function(){
+  persistPortfolioLocally();
+  showToast('Portfolio and targets successfully saved to your browser!', 'success');
+};
+
+window.exportPortfolioToFile = function(){
+  if (!portfolio || portfolio.length === 0){
+    showToast('Your portfolio is empty. Nothing to export.', 'warning');
+    return;
+  }
+  const backupData = {
+    app: 'Ledger Quantitative Crypto Tracker',
+    version: '3.0',
+    exportedAt: new Date().toISOString(),
+    currency: currentCurrency,
+    exchangeRateMYR: EXCHANGE_RATE_MYR,
+    positions: portfolio
+  };
+  const blob = new Blob([JSON.stringify(backupData, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `ledger-crypto-portfolio-${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${portfolio.length} position(s) to backup JSON file.`, 'success');
+};
+
+window.triggerImportFileInput = function(){
+  const input = document.getElementById('importFileInput');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+};
+
+window.handlePortfolioImport = function(event){
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    try {
+      const parsed = JSON.parse(e.target.result);
+      let incoming = [];
+      if (Array.isArray(parsed)) {
+        incoming = parsed;
+      } else if (parsed && Array.isArray(parsed.positions)) {
+        incoming = parsed.positions;
+      } else if (parsed && Array.isArray(parsed.portfolio)) {
+        incoming = parsed.portfolio;
+      } else {
+        throw new Error('Unrecognized JSON format. Expected positions array.');
+      }
+
+      const validated = incoming.filter(p => p && p.symbol && !isNaN(p.quantity) && p.quantity > 0 && !isNaN(p.entryPriceUSD) && p.entryPriceUSD > 0)
+        .map(p => ({
+          id: p.id || ('pos_' + Date.now() + '_' + Math.random().toString(36).slice(2,6)),
+          symbol: p.symbol.trim().toUpperCase(),
+          quantity: parseFloat(p.quantity),
+          entryPriceUSD: parseFloat(p.entryPriceUSD),
+          strategy: p.strategy === 'Aggressive' ? 'Aggressive' : 'Conservative',
+          currentPriceUSD: parseFloat(p.currentPriceUSD) || parseFloat(p.entryPriceUSD),
+          priceSource: p.priceSource || 'Imported backup',
+          isLive: !!p.isLive,
+          manualOverride: !!p.manualOverride
+        }));
+
+      if (validated.length === 0){
+        showToast('No valid crypto positions found in the selected file.', 'error');
+        return;
+      }
+
+      let replaceCurrent = true;
+      if (portfolio.length > 0){
+        replaceCurrent = confirm(`Found ${validated.length} position(s) in file.\n\nClick OK to REPLACE your current portfolio.\nClick CANCEL to MERGE with existing holdings.`);
+      }
+
+      if (replaceCurrent) {
+        portfolio = validated;
+      } else {
+        validated.forEach(inc => {
+          const match = portfolio.find(p => p.symbol === inc.symbol);
+          if (match) {
+            const totalCost = (match.entryPriceUSD * match.quantity) + (inc.entryPriceUSD * inc.quantity);
+            match.quantity += inc.quantity;
+            match.entryPriceUSD = totalCost / match.quantity;
+            match.strategy = inc.strategy;
+          } else {
+            portfolio.push(inc);
+          }
+        });
+      }
+
+      persistPortfolioLocally();
+      updateDashboard();
+      showToast(`Imported ${validated.length} coin(s). Syncing live quotes…`, 'success');
+      await refreshAllLivePrices(true);
+    } catch (err) {
+      console.error(err);
+      showToast(`Import failed: ${err.message}`, 'error');
+    }
+  };
+  reader.readAsText(file);
+};
+
+/* ============ Live Price Engine ============ */
+const COINGECKO_IDS = {
+  BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', XRP:'ripple',
+  ADA:'cardano', DOGE:'dogecoin', AVAX:'avalanche-2', LINK:'chainlink', DOT:'polkadot',
+  SUI:'sui', NEAR:'near', PEPE:'pepe', MATIC:'matic-network', LTC:'litecoin', TRX:'tron',
+  ATOM:'cosmos', UNI:'uniswap', ARB:'arbitrum', OP:'optimism', APT:'aptos', SHIB:'shiba-inu',
+  TON:'the-open-network', ICP:'internet-computer'
+};
+const coinIdCache = {...COINGECKO_IDS};
+
+function logDiag(symbol, source, ok, message){
+  const row = document.createElement('div');
+  row.className = 'row';
+  const t = new Date().toLocaleTimeString();
+  row.innerHTML = `<span class="t">${t}</span><span class="${ok?'ok':'fail'}">${ok?'✓':'✗'} ${symbol}</span><span>${source}: ${message}</span>`;
+  diagLog.prepend(row);
+  while (diagLog.children.length > 60) diagLog.removeChild(diagLog.lastChild);
+}
+
+async function resolveCoinGeckoId(ticker){
+  if (coinIdCache[ticker]) return coinIdCache[ticker];
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(ticker)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const match = (data.coins || []).find(c => (c.symbol || '').toUpperCase() === ticker);
+      if (match) { coinIdCache[ticker] = match.id; return match.id; }
+    }
+  } catch (e) { /* fallback */ }
+  return null;
+}
+
+async function fetchLivePrice(symbol){
+  const ticker = symbol.trim().toUpperCase();
+
+  // Source 1: CoinGecko
+  try {
+    const id = await resolveCoinGeckoId(ticker);
+    if (id) {
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`, {cache:'no-cache'});
+      if (res.ok) {
+        const data = await res.json();
+        const price = data?.[id]?.usd;
+        if (typeof price === 'number') {
+          logDiag(ticker, 'CoinGecko', true, `$${price}`);
+          return {price, source:'CoinGecko', isLive:true};
+        }
+        logDiag(ticker, 'CoinGecko', false, 'no price field');
+      } else {
+        logDiag(ticker, 'CoinGecko', false, `HTTP ${res.status}`);
+      }
+    }
+  } catch (e) { logDiag(ticker, 'CoinGecko', false, e.message || 'network/CORS'); }
+
+  // Source 2: CryptoCompare
+  try {
+    const res = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${encodeURIComponent(ticker)}&tsyms=USD`, {cache:'no-cache'});
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.USD === 'number' && data.Response !== 'Error') {
+        logDiag(ticker, 'CryptoCompare', true, `$${data.USD}`);
+        return {price:data.USD, source:'CryptoCompare', isLive:true};
+      }
+      logDiag(ticker, 'CryptoCompare', false, data.Message || 'no USD field');
+    }
+  } catch (e) { logDiag(ticker, 'CryptoCompare', false, e.message || 'network/CORS'); }
+
+  // Source 3: Binance
+  try {
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${ticker}USDT`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.price) {
+        logDiag(ticker, 'Binance', true, `$${data.price}`);
+        return {price:parseFloat(data.price), source:'Binance', isLive:true};
+      }
+      logDiag(ticker, 'Binance', false, data.msg || 'no price field');
+    }
+  } catch (e) { logDiag(ticker, 'Binance', false, e.message || 'network/CORS'); }
+
+  // Fallback benchmarks
+  const benchmarks = {BTC:66450, ETH:3380, SOL:154, BNB:585, XRP:0.585, ADA:0.36, DOGE:0.115, AVAX:28.5, LINK:11.9, DOT:4.35, SUI:1.88, NEAR:4.95, PEPE:0.0000096};
+  if (benchmarks[ticker]) {
+    logDiag(ticker, 'Offline reference', true, `$${benchmarks[ticker]} (offline benchmark)`);
+    return {price:benchmarks[ticker], source:'Reference (offline)', isLive:false};
+  }
+
+  logDiag(ticker, 'All sources', false, 'unrecognized ticker');
+  return null;
+}
+
+/* ============ Live USD/MYR exchange rate ============ */
+async function fetchExchangeRate(){
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=MYR', {cache:'no-cache'});
+    if (res.ok){
+      const data = await res.json();
+      const rate = data?.rates?.MYR;
+      if (typeof rate === 'number'){
+        logDiag('USD/MYR', 'Frankfurter', true, `1 USD = RM${rate}`);
+        return {rate, source:'Frankfurter', isLive:true};
+      }
+    }
+  } catch (e) { /* fallback */ }
+
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD', {cache:'no-cache'});
+    if (res.ok){
+      const data = await res.json();
+      const rate = data?.rates?.MYR;
+      if (typeof rate === 'number'){
+        logDiag('USD/MYR', 'ExchangeRate-API', true, `1 USD = RM${rate}`);
+        return {rate, source:'ExchangeRate-API', isLive:true};
+      }
+    }
+  } catch (e) { /* fallback */ }
+
+  return {rate:4.30, source:'Offline reference', isLive:false};
+}
+
+async function refreshExchangeRate(silent=true){
+  const {rate, source, isLive} = await fetchExchangeRate();
+  EXCHANGE_RATE_MYR = rate;
+  fxIsLive = isLive;
+  fxSource = source;
+  fxReady = true;
+  updateFxLabel();
+  if (currentCurrency==='MYR') updateDashboard();
+  if (!isLive && !silent) showToast('Live USD/MYR rate unavailable — using fallback rate.', 'warning');
+}
+
+function updateFxLabel(){
+  const el = document.getElementById('fxLabel');
+  if (!el) return;
+  el.textContent = `1 USD ≈ RM ${EXCHANGE_RATE_MYR.toFixed(4)}`;
+  el.title = fxIsLive ? `Live from ${fxSource}` : 'Offline reference rate';
+  const dot = document.getElementById('fxDot');
+  if (dot) dot.classList.toggle('offline', !fxIsLive);
+}
+
+/* ============ Enhanced Quantitative Signal & Formula Engine ============ */
+function getAssetRiskProfile(symbol) {
+  const sym = symbol.toUpperCase();
+  if (['BTC', 'ETH'].includes(sym)) {
+    return {
+      tier: 'Tier-1 Macro',
+      faScore: 96,
+      faGrade: 'Pristine Macro Asset',
+      nvtStatus: 'Low Systemic Overvaluation Risk',
+      // Base percentages
+      dip1: 0.055, // -5.5% pullback top up
+      dip2: 0.11,  // -11% value DCA
+      tp1: 0.14,   // +14% scale-out TP1
+      tp2: 0.28,   // +28% runner TP2
+      stop: 0.085  // -8.5% invalidation stop
+    };
+  } else if (['SOL', 'BNB', 'AVAX', 'NEAR', 'SUI', 'LINK', 'DOT', 'TON', 'ADA', 'XRP'].includes(sym)) {
+    return {
+      tier: 'Tier-2 Layer 1 / Core DeFi',
+      faScore: 88,
+      faGrade: 'High-Velocity Network',
+      nvtStatus: 'Expanding On-Chain Volume & TVL',
+      dip1: 0.075, // -7.5% pullback
+      dip2: 0.16,  // -16% value DCA
+      tp1: 0.22,   // +22% TP1
+      tp2: 0.48,   // +48% TP2
+      stop: 0.13   // -13% stop
+    };
+  } else if (['PEPE', 'DOGE', 'SHIB', 'MEME', 'FLOKI', 'BONK', 'WIF'].includes(sym)) {
+    return {
+      tier: 'Tier-3 Speculative / Momentum',
+      faScore: 56,
+      faGrade: 'High-Beta Momentum',
+      nvtStatus: 'Liquidity & Sentiment Sensitive',
+      dip1: 0.12,  // -12% pullback
+      dip2: 0.25,  // -25% crash accumulation
+      tp1: 0.38,   // +38% TP1
+      tp2: 0.80,   // +80% TP2
+      stop: 0.19   // -19% hard cut
+    };
+  } else {
+    return {
+      tier: 'Mid-Cap Altcoin',
+      faScore: 78,
+      faGrade: 'Growth Protocol',
+      nvtStatus: 'Standard Beta Volatility',
+      dip1: 0.08,  // -8%
+      dip2: 0.18,  // -18%
+      tp1: 0.25,   // +25%
+      tp2: 0.55,   // +55%
+      stop: 0.14   // -14%
+    };
+  }
+}
+
+function runAlgoAnalysis(pos){
+  const {entryPriceUSD, currentPriceUSD, strategy, quantity, symbol} = pos;
+  const pnlUSD = (currentPriceUSD - entryPriceUSD) * quantity;
+  const pnlPercent = ((currentPriceUSD - entryPriceUSD) / entryPriceUSD) * 100;
+  
+  const profile = getAssetRiskProfile(symbol);
+  const isAggressive = (strategy === 'Aggressive');
+  const stratMultiplier = isAggressive ? 1.45 : 1.0;
+
+  // Calculated Support & DCA Top-up Tiers
+  const support1 = entryPriceUSD * (1 - (profile.dip1 * stratMultiplier));
+  const support2 = entryPriceUSD * (1 - (profile.dip2 * stratMultiplier));
+  const targetEntryDip = support1;
+
+  // Calculated Exit & Take-Profit Targets
+  const targetExit1 = entryPriceUSD * (1 + (profile.tp1 * stratMultiplier));
+  const targetExit2 = entryPriceUSD * (1 + (profile.tp2 * stratMultiplier));
+  
+  // Base Invalidation Stop
+  const initialStopLoss = entryPriceUSD * (1 - (profile.stop * (isAggressive ? 1.35 : 1.0)));
+
+  // Dynamic Trailing Floor: If position is up > TP1, move stop up to protect cost basis (break-even lock)
+  let effectiveStop = initialStopLoss;
+  let isTrailingActive = false;
+  if (pnlPercent >= (profile.tp1 * stratMultiplier * 100)) {
+    effectiveStop = Math.max(initialStopLoss, entryPriceUSD * 1.02); // Lock at least +2% profit
+    isTrailingActive = true;
+  }
+
+  // Determine Signal Status & Actionable Advice
+  let action = 'HOLD & MONITOR';
+  let actionType = 'HOLD';
+  let pillClass = 'hold';
+  let icon = 'fa-arrows-left-right';
+  let advice = `Consolidating in neutral zone (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%). Maintain allocation.`;
+
+  if (currentPriceUSD <= effectiveStop) {
+    action = isTrailingActive ? 'TRAILING STOP HIT' : 'STOP LOSS TRIGGERED';
+    actionType = 'CUT';
+    pillClass = 'cut';
+    icon = 'fa-triangle-exclamation';
+    advice = `Breached stop level (${formatMoney(effectiveStop, true)}). Scale out 50–100% to protect capital.`;
+  } else if (currentPriceUSD >= targetExit2) {
+    action = 'TAKE PROFIT (TP2 MAX)';
+    actionType = 'REDUCE';
+    pillClass = 'reduce';
+    icon = 'fa-champagne-glasses';
+    advice = `Expansion target met (+${pnlPercent.toFixed(1)}%). Bank 50–70% profit, trail remainder.`;
+  } else if (currentPriceUSD >= targetExit1) {
+    action = 'TAKE PROFIT (TP1)';
+    actionType = 'REDUCE';
+    pillClass = 'reduce';
+    icon = 'fa-sack-dollar';
+    advice = `TP1 target hit at ${formatMoney(targetExit1, true)}. Harvest 30–40% and shift stop to break-even.`;
+  } else if (currentPriceUSD <= support2) {
+    action = 'STRONG BUY (VALUE DCA)';
+    actionType = 'TOP_UP';
+    pillClass = 'topup';
+    icon = 'fa-cart-plus';
+    advice = `Oversold near Support 2 (${formatMoney(support2, true)}). High-conviction top up (+35% size).`;
+  } else if (currentPriceUSD <= support1) {
+    action = 'TOP UP (DCA DIP 1)';
+    actionType = 'TOP_UP';
+    pillClass = 'topup';
+    icon = 'fa-arrow-turn-up';
+    advice = `Healthy pullback near ${formatMoney(support1, true)}. Add 15–25% to lower average entry cost.`;
+  } else if (pnlPercent > 3 && pnlPercent < (profile.tp1 * stratMultiplier * 100)) {
+    action = 'TRENDING UP';
+    actionType = 'HOLD';
+    pillClass = 'hold';
+    icon = 'fa-arrow-trend-up';
+    advice = `Up +${pnlPercent.toFixed(1)}%. Approaching TP1 resistance (${formatMoney(targetExit1, true)}).`;
+  } else if (pnlPercent >= -3 && pnlPercent <= 3) {
+    action = 'AT ENTRY BASIS';
+    actionType = 'HOLD';
+    pillClass = 'hold';
+    icon = 'fa-check';
+    advice = `Position is at breakeven basis. Top-up triggers below ${formatMoney(support1, true)}.`;
+  }
+
+  return {
+    pnlUSD,
+    pnlPercent,
+    support1,
+    support2,
+    targetExit1,
+    targetExit2,
+    stopLoss: initialStopLoss,
+    effectiveStop,
+    isTrailingActive,
+    targetEntryDip,
+    faScore: profile.faScore,
+    faGrade: profile.faGrade,
+    nvtStatus: profile.nvtStatus,
+    assetTier: profile.tier,
+    action,
+    actionType,
+    pillClass,
+    icon,
+    advice
+  };
+}
+
+/* ============ Position Management ============ */
+window.setCurrency = function(cur){
+  if (currentCurrency === cur) return;
+  currentCurrency = cur;
+  localStorage.setItem(STORAGE_CURRENCY_KEY, cur);
+  document.getElementById('btnUSD').classList.toggle('active', cur==='USD');
+  document.getElementById('btnMYR').classList.toggle('active', cur==='MYR');
+  document.getElementById('entryLabel').textContent = `Avg entry (${cur})`;
+  document.getElementById('entryPrice').placeholder = cur==='MYR' ? (65000*EXCHANGE_RATE_MYR).toFixed(0) : '65000';
+  updateDashboard();
+  showToast(`Currency switched to ${cur}`, 'info');
+};
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  clearFormError();
+  const symbolInput = document.getElementById('symbol');
+  const qtyInput = document.getElementById('quantity');
+  const entryInput = document.getElementById('entryPrice');
+  const strategyInput = document.getElementById('strategy');
+
+  const symbol = symbolInput.value.trim().toUpperCase();
+  const quantity = parseFloat(qtyInput.value);
+  const entryVal = parseFloat(entryInput.value);
+  const strategy = strategyInput.value;
+
+  if (!symbol || isNaN(entryVal) || isNaN(quantity) || entryVal<=0 || quantity<=0){
+    showFormError('Enter valid positive numbers for quantity and entry price.');
+    return;
+  }
+  if (currentCurrency==='MYR' && !fxReady){
+    showFormError('Still loading live USD/MYR rate — wait a second and retry, or switch to USD.');
+    return;
+  }
+  const entryPriceUSD = currentCurrency==='MYR' ? entryVal/EXCHANGE_RATE_MYR : entryVal;
+
+  const original = submitBtn.innerHTML;
+  submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing & fetching quote…';
+  submitBtn.disabled = true;
+
+  const ok = await addPosition(symbol, entryPriceUSD, quantity, strategy);
+
+  submitBtn.innerHTML = original;
+  submitBtn.disabled = false;
+  if (ok){ 
+    form.reset(); 
+    symbolInput.focus(); 
+  }
+});
+
+async function addPosition(symbol, entryPriceUSD, quantity, strategy){
+  const quote = await fetchLivePrice(symbol);
+  if (quote === null){
+    showFormError(`Could not find market feed for ticker "${symbol}". Check the spelling or diagnostics.`);
+    return false;
+  }
+  const {price:currentPriceUSD, source:priceSource, isLive} = quote;
+  if (!isLive) showFormError(`Live feed currently unreachable for "${symbol}" — using offline benchmark.`);
+
+  const existing = portfolio.find(p => p.symbol === symbol);
+  if (existing){
+    const totalCost = (existing.entryPriceUSD * existing.quantity) + (entryPriceUSD * quantity);
+    existing.quantity += quantity;
+    existing.entryPriceUSD = totalCost / existing.quantity;
+    existing.strategy = strategy;
+    existing.currentPriceUSD = currentPriceUSD;
+    existing.priceSource = priceSource;
+    existing.isLive = isLive;
+    existing.manualOverride = false;
+    showToast(`Updated ${symbol} with weighted DCA average cost.`, 'success');
+  } else {
+    portfolio.push({
+      id:'pos_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      symbol, entryPriceUSD, quantity, strategy, currentPriceUSD, priceSource, isLive, manualOverride:false
+    });
+    showToast(isLive ? `Added ${symbol} — live quote from ${priceSource}.` : `Added ${symbol} with reference quote.`, isLive ? 'success' : 'warning');
+  }
+  
+  persistPortfolioLocally();
+  updateDashboard();
+  lastSyncTime = Date.now();
+  return true;
+}
+
+window.removePosition = function(id){
+  const target = portfolio.find(p=>p.id===id);
+  portfolio = portfolio.filter(p=>p.id!==id);
+  persistPortfolioLocally();
+  updateDashboard();
+  if (target) showToast(`Removed ${target.symbol} from portfolio.`, 'info');
+};
+
+window.editEntryPrice = function(id){
+  const pos = portfolio.find(p=>p.id===id);
+  if (!pos) return;
+  const cell = document.getElementById(`entry-cell-${id}`);
+  const currentDisplay = currentCurrency==='MYR' ? (pos.entryPriceUSD*EXCHANGE_RATE_MYR).toFixed(6) : pos.entryPriceUSD.toFixed(6);
+  cell.innerHTML = `<input type="number" step="any" class="price-input" id="edit-entry-${id}" value="${currentDisplay}">`;
+  const input = document.getElementById(`edit-entry-${id}`);
+  input.focus(); input.select();
+  const commit = () => {
+    const val = parseFloat(input.value);
+    if (!isNaN(val) && val > 0){
+      pos.entryPriceUSD = currentCurrency==='MYR' ? val/EXCHANGE_RATE_MYR : val;
+      persistPortfolioLocally();
+      showToast(`${pos.symbol} avg entry updated & saved.`, 'info');
+    }
+    updateDashboard();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', ev => { if (ev.key==='Enter') input.blur(); if (ev.key==='Escape') updateDashboard(); });
+};
+
+window.editPrice = function(id){
+  const pos = portfolio.find(p=>p.id===id);
+  if (!pos) return;
+  const cell = document.getElementById(`price-cell-${id}`);
+  const currentDisplay = currentCurrency==='MYR' ? (pos.currentPriceUSD*EXCHANGE_RATE_MYR).toFixed(6) : pos.currentPriceUSD.toFixed(6);
+  cell.innerHTML = `<input type="number" step="any" class="price-input" id="edit-${id}" value="${currentDisplay}">`;
+  const input = document.getElementById(`edit-${id}`);
+  input.focus(); input.select();
+  const commit = () => {
+    const val = parseFloat(input.value);
+    if (!isNaN(val) && val > 0){
+      pos.currentPriceUSD = currentCurrency==='MYR' ? val/EXCHANGE_RATE_MYR : val;
+      pos.priceSource = 'Manual override';
+      pos.isLive = false;
+      pos.manualOverride = true;
+      persistPortfolioLocally();
+      showToast(`${pos.symbol} price overridden manually.`, 'info');
+    }
+    updateDashboard();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', ev => { if (ev.key==='Enter') input.blur(); if (ev.key==='Escape') updateDashboard(); });
+};
+
+window.openTradingViewChart = function(symbol){
+  const ticker = symbol.trim().toUpperCase();
+  const tvSymbol = currentCurrency==='MYR' ? `BINANCE:${ticker}USDT*FX_IDC:USDMYR` : `BINANCE:${ticker}USDT`;
+  window.open(`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`, '_blank', 'noopener,noreferrer');
+};
+
+/* ============ Rendering ============ */
+function renderTable(){
+  tableBody.innerHTML = '';
+  const table = document.getElementById('posTable');
+  const emptyTable = document.getElementById('emptyTable');
+  if (portfolio.length === 0){
+    table.style.display = 'none'; emptyTable.style.display = 'block'; return;
+  }
+  table.style.display = 'table'; emptyTable.style.display = 'none';
+
+  portfolio.forEach(pos => {
+    const a = runAlgoAnalysis(pos);
+    const currentValueUSD = pos.currentPriceUSD * pos.quantity;
+    const pnlClass = a.pnlUSD >= 0 ? 'up' : 'down';
+    const sign = a.pnlUSD >= 0 ? '+' : '';
+    const stratIcon = pos.strategy==='Conservative' ? 'fa-shield-halved' : 'fa-bolt';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="coin-name">
+          <div class="coin-badge">${pos.symbol.substring(0,4)}</div>
+          <div>
+            <div style="font-weight:600;">${pos.symbol}<span class="fa-num">FA ${a.faScore}</span></div>
+            <div class="meta"><i class="fa-solid ${stratIcon}"></i> ${pos.strategy}</div>
+          </div>
+        </div>
+      </td>
+      <td class="num">
+        <div class="mono" style="font-weight:600;">${pos.quantity.toLocaleString(undefined,{maximumFractionDigits:6})}</div>
+        <div class="meta" style="text-align:right;">${formatMoney(currentValueUSD)}</div>
+      </td>
+      <td id="entry-cell-${pos.id}" class="num mono">
+        <button class="price-edit-btn" onclick="editEntryPrice('${pos.id}')" title="Edit avg cost"><i class="fa-solid fa-pen"></i></button>
+        ${formatMoney(pos.entryPriceUSD, true)}
+      </td>
+      <td id="price-cell-${pos.id}" class="num mono price-cell" style="font-weight:600;">
+        <div class="src-row">
+          <button class="price-edit-btn" onclick="editPrice('${pos.id}')" title="Set price manually"><i class="fa-solid fa-pen"></i></button>
+          <span class="src-dot ${pos.isLive===false?'offline':'live'}" title="${pos.isLive===false ? (pos.manualOverride?'Manual override':'Offline reference') : `Live from ${pos.priceSource||'feed'}`}"></span>
+          ${formatMoney(pos.currentPriceUSD, true)}
+        </div>
+        <div class="src-label">${pos.manualOverride ? 'Manual' : (pos.isLive===false ? 'Reference' : (pos.priceSource||''))}</div>
+      </td>
+      <td class="num">
+        <div class="${pnlClass} mono" style="font-weight:700;">${sign}${formatMoney(a.pnlUSD)}</div>
+        <div class="${pnlClass}" style="font-size:11px; margin-top:3px;">${sign}${a.pnlPercent.toFixed(2)}%</div>
+      </td>
+      <td class="mid">
+        <div class="targets">
+          <span class="t-buy" title="Top-up DCA level"><i class="fa-solid fa-arrow-down-long"></i> DCA: ${formatMoney(a.targetEntryDip, true)}</span>
+          <span class="t-exit" title="Take Profit 1 level"><i class="fa-solid fa-arrow-up-long"></i> TP1: ${formatMoney(a.targetExit1, true)}</span>
+          <span class="t-stop" title="${a.isTrailingActive ? 'Trailing break-even stop' : 'Capital preservation stop'}"><i class="fa-solid fa-shield"></i> Stop: ${formatMoney(a.effectiveStop, true)}</span>
+        </div>
+      </td>
+      <td class="mid">
+        <span class="pill ${a.pillClass}"><i class="fa-solid ${a.icon}"></i> ${a.action}</span>
+        <div class="advice" title="${a.advice}">${a.advice}</div>
+      </td>
+      <td class="mid">
+        <button class="icon-btn" onclick="openTradingViewChart('${pos.symbol}')" title="Open live chart on TradingView">
+          <i class="fa-solid fa-arrow-trend-up"></i>
+        </button>
+      </td>
+      <td class="mid">
+        <div class="row-actions">
+          <button class="dd-btn" onclick="openAnalysisModal('${pos.id}')"><i class="fa-solid fa-chart-simple"></i> Dive</button>
+          <button class="icon-btn danger" onclick="removePosition('${pos.id}')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      </td>
+    `;
+    tableBody.appendChild(tr);
+  });
+}
+
+function updateSummary(){
+  let invested=0, current=0, actions=0;
+  portfolio.forEach(pos=>{
+    const a = runAlgoAnalysis(pos);
+    invested += pos.entryPriceUSD*pos.quantity;
+    current += pos.currentPriceUSD*pos.quantity;
+    if (a.actionType!=='HOLD') actions++;
+  });
+  const pnl = current - invested;
+  const ret = invested>0 ? (pnl/invested)*100 : 0;
+
+  document.getElementById('totalValue').textContent = formatMoney(current);
+  document.getElementById('chartTotalLabel').textContent = `Total: ${formatMoney(current)}`;
+  const pnlEl = document.getElementById('totalPnl');
+  pnlEl.textContent = `${pnl>=0?'+':'-'}${formatMoney(Math.abs(pnl))}`;
+  pnlEl.className = `value ${pnl>=0?'up':'down'}`;
+  const retEl = document.getElementById('totalReturnPct');
+  retEl.textContent = `${pnl>=0?'+':''}${ret.toFixed(2)}%`;
+  retEl.className = pnl>=0?'up':'down';
+  document.getElementById('activeCount').textContent = portfolio.length;
+  document.getElementById('actionCount').textContent = actions;
+
+  const statusEl = document.getElementById('statusValue');
+  if (actions>0){ statusEl.textContent='Signals active'; statusEl.className='value down'; }
+  else { statusEl.textContent='Optimized'; statusEl.className='value up'; }
+}
+
+function isDarkTheme(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+function updateChart(){
+  const ctx = document.getElementById('allocationChart').getContext('2d');
+  const emptyEl = document.getElementById('chartEmpty');
+  if (portfolio.length===0){
+    emptyEl.style.display='flex';
+    document.getElementById('allocationChart').style.display='none';
+    if (chartInstance){ chartInstance.destroy(); chartInstance=null; }
+    return;
+  }
+  emptyEl.style.display='none';
+  document.getElementById('allocationChart').style.display='block';
+  const labels = portfolio.map(p=>p.symbol);
+  const data = portfolio.map(p=> (currentCurrency==='MYR'? p.currentPriceUSD*p.quantity*EXCHANGE_RATE_MYR : p.currentPriceUSD*p.quantity));
+  const dark = isDarkTheme();
+  const textColor = dark ? '#B5AC9C' : '#726A5C';
+  const cardBg = dark ? '#242019' : '#FBF9F4';
+  const tooltipBg = dark ? '#F0EAE0' : '#26201A';
+  const tooltipText = dark ? '#26201A' : '#FBF9F4';
+  const tooltipSub = dark ? '#4A4438' : '#E3DCCB';
+
+  if (chartInstance){
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = data;
+    chartInstance.destroy();
+    chartInstance = null;
+  }
+  Chart.defaults.color = textColor;
+  Chart.defaults.font.family = 'Inter';
+  chartInstance = new Chart(ctx, {
+    type:'doughnut',
+    data:{labels, datasets:[{data, backgroundColor:chartColors, borderColor:cardBg, borderWidth:3, hoverOffset:6}]},
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'70%',
+      plugins:{
+        legend:{position:'right', labels:{color:textColor, padding:14, usePointStyle:true, pointStyle:'circle', boxWidth:8, font:{size:12}}},
+        tooltip:{
+          backgroundColor:tooltipBg, titleColor:tooltipText, bodyColor:tooltipSub, padding:10, cornerRadius:8,
+          callbacks:{ label(ctx){
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const pct = total>0 ? ((ctx.raw/total)*100).toFixed(1) : 0;
+            const val = currentCurrency==='MYR' ? formatters.MYR.format(ctx.raw) : formatters.USD.format(ctx.raw);
+            return ` ${ctx.label}: ${val} (${pct}%)`;
+          }}
+        }
+      }
+    }
+  });
+}
+
+/* ============ Theme toggle ============ */
+function initThemeIcon(){
+  const icon = document.getElementById('themeIcon');
+  icon.className = isDarkTheme() ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+}
+window.toggleTheme = function(){
+  const next = isDarkTheme() ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('ledger-theme', next); } catch(e) {}
+  initThemeIcon();
+  updateChart();
+};
+
+function updateDashboard(){ renderTable(); updateSummary(); updateChart(); }
+
+/* ============ Deep-dive modal ============ */
+window.openAnalysisModal = function(id){
+  const pos = portfolio.find(p=>p.id===id);
+  if (!pos) return;
+  const a = runAlgoAnalysis(pos);
+  document.getElementById('modalBadge').textContent = pos.symbol.substring(0,4);
+  document.getElementById('modalTitle').textContent = `${pos.symbol} quantitative dossier`;
+  document.getElementById('modalSub').textContent = `${a.assetTier} · Live ${formatMoney(pos.currentPriceUSD,true)} · Cost basis ${formatMoney(pos.entryPriceUSD,true)}`;
+
+  const bannerBg = a.actionType==='CUT' ? 'var(--cut-bg)' : a.actionType==='REDUCE' ? 'var(--reduce-bg)' : a.actionType==='TOP_UP' ? 'var(--topup-bg)' : 'var(--cream)';
+  const bannerColor = a.actionType==='CUT' ? 'var(--cut-text)' : a.actionType==='REDUCE' ? 'var(--reduce-text)' : a.actionType==='TOP_UP' ? 'var(--topup-text)' : 'var(--ink-soft)';
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="action-banner" style="background:${bannerBg}; color:${bannerColor};">
+      <div>
+        <div style="font-size:10px; text-transform:uppercase; opacity:.75;">Active Signal Recommendation</div>
+        <div style="font-weight:700; font-size:15px; margin-top:3px;"><i class="fa-solid ${a.icon}"></i> ${a.action}</div>
+        <div style="font-size:12px; margin-top:4px; opacity:.9;">${a.advice}</div>
+      </div>
+      <div style="text-align:right; font-family:var(--font-mono);">
+        <div style="font-size:11px; opacity:.7;">Current P&amp;L</div>
+        <div style="font-weight:700; font-size:16px;">${a.pnlUSD>=0?'+':''}${a.pnlPercent.toFixed(2)}%</div>
+      </div>
+    </div>
+    <div>
+      <h4 style="font-size:12px; text-transform:uppercase; color:var(--ink-soft); margin:0 0 10px;">Execution Matrix &amp; Key Price Levels</h4>
+      <div class="levels-grid">
+        <div class="level-box"><div class="l">DCA Dip 1</div><div class="v" style="color:var(--moss);">${formatMoney(a.support1,true)}</div></div>
+        <div class="level-box"><div class="l">Value DCA 2</div><div class="v" style="color:var(--moss);">${formatMoney(a.support2,true)}</div></div>
+        <div class="level-box"><div class="l">Target TP1</div><div class="v" style="color:var(--clay-dark);">${formatMoney(a.targetExit1,true)}</div></div>
+        <div class="level-box"><div class="l">Target TP2</div><div class="v" style="color:var(--clay-dark);">${formatMoney(a.targetExit2,true)}</div></div>
+        <div class="level-box"><div class="l">${a.isTrailingActive ? 'Trailing Stop' : 'Stop Loss'}</div><div class="v" style="color:var(--rust);">${formatMoney(a.effectiveStop,true)}</div></div>
+      </div>
+    </div>
+    <div>
+      <h4 style="font-size:12px; text-transform:uppercase; color:var(--ink-soft); margin:0 0 10px;">Fundamental &amp; Network Health</h4>
+      <div class="fa-health">
+        <div style="display:flex; justify-content:space-between;"><span>FA Strength Score</span><strong>${a.faScore}/100 — ${a.faGrade}</strong></div>
+        <div class="fa-bar"><div class="fa-bar-fill" style="width:${a.faScore}%"></div></div>
+        <div style="color:var(--ink-soft);">${a.nvtStatus}</div>
+      </div>
+    </div>
+    <div class="rule-note">
+      <i class="fa-solid fa-lightbulb"></i>
+      <span>When price trades into DCA zones, add to your holdings to lower your break-even cost. When hitting TP1 or TP2, harvest profit and lock your trailing stop at break-even.</span>
+    </div>
+  `;
+  document.getElementById('modalBg').classList.add('open');
+};
+window.closeModal = function(){ document.getElementById('modalBg').classList.remove('open'); };
+document.getElementById('modalBg').addEventListener('click', e=>{ if (e.target.id==='modalBg') closeModal(); });
+
+/* ============ Auto-Refresh & Sync Engine ============ */
+let isRefreshing = false;
+let lastSyncTime = null;
+
+async function refreshAllLivePrices(silent=true){
+  if (isRefreshing) return;
+  if (portfolio.length===0){ syncLabel.textContent='No positions yet'; return; }
+  isRefreshing = true;
+  syncDot.classList.add('busy');
+  syncIcon.classList.add('spin');
+  syncLabel.textContent = 'Syncing…';
+
+  const results = await Promise.all(portfolio.map(async pos => {
+    if (pos.manualOverride) return {id:pos.id, symbol:pos.symbol, quote:null, skipped:true};
+    const quote = await fetchLivePrice(pos.symbol);
+    return {id:pos.id, symbol:pos.symbol, quote};
+  }));
+
+  let failures=[], offline=[];
+  const flashed=[];
+  results.forEach(({id, symbol, quote, skipped})=>{
+    if (skipped) return;
+    const pos = portfolio.find(p=>p.id===id);
+    if (quote!==null){
+      if (pos){ pos.currentPriceUSD=quote.price; pos.priceSource=quote.source; pos.isLive=quote.isLive; }
+      if (quote.isLive) flashed.push(id); else offline.push(symbol);
+    } else {
+      failures.push(symbol);
+    }
+  });
+
+  persistPortfolioLocally();
+  updateDashboard();
+  
+  flashed.forEach(id=>{
+    const cell = document.getElementById(`price-cell-${id}`);
+    if (!cell) return;
+    cell.classList.add('price-flash');
+    setTimeout(()=>cell.classList.remove('price-flash'), 700);
+  });
+
+  lastSyncTime = Date.now();
+  isRefreshing = false;
+  syncDot.classList.remove('busy');
+  syncIcon.classList.remove('spin');
+
+  if (failures.length>0) showToast(`No price feed answered for: ${failures.join(', ')}`, 'warning');
+  else if (offline.length>0) showToast(`Live feeds unreachable for: ${offline.join(', ')} — using offline reference`, 'warning');
+  else if (!silent) showToast('All live quotes refreshed.', 'success');
+}
+
+setInterval(()=>{
+  if (isRefreshing) return;
+  if (!lastSyncTime){ syncLabel.textContent = portfolio.length ? 'Syncing…' : 'No positions'; return; }
+  const s = Math.round((Date.now()-lastSyncTime)/1000);
+  syncLabel.textContent = s<2 ? 'Synced just now' : `Synced ${s}s ago`;
+}, 1000);
+
+setInterval(()=>refreshAllLivePrices(true), 30000);
+setInterval(()=>refreshExchangeRate(true), 300000);
+
+/* ============ Cold Start / Boot Lifecycle ============ */
+window.resetToSampleTemplate = async function(){
+  if (confirm("Load starter sample positions (BTC, ETH, SOL, SUI)? This will replace your current table.")){
+    portfolio = [];
+    await Promise.all([
+      addPosition('BTC', 58500, 0.45, 'Conservative'),
+      addPosition('ETH', 2750, 3.5, 'Conservative'),
+      addPosition('SOL', 135, 25, 'Aggressive'),
+      addPosition('SUI', 1.45, 1200, 'Aggressive')
+    ]);
+  }
+};
+
+window.addEventListener('DOMContentLoaded', async ()=>{
+  // 1. Restore Preferred Currency
+  const savedCurrency = localStorage.getItem(STORAGE_CURRENCY_KEY);
+  if (savedCurrency && ['USD', 'MYR'].includes(savedCurrency)) {
+    currentCurrency = savedCurrency;
+    document.getElementById('btnUSD').classList.toggle('active', currentCurrency==='USD');
+    document.getElementById('btnMYR').classList.toggle('active', currentCurrency==='MYR');
+    document.getElementById('entryLabel').textContent = `Avg entry (${currentCurrency})`;
+  }
+
+  initThemeIcon();
+
+  // 2. Check if a saved portfolio exists on this computer
+  const hasSavedPortfolio = loadPortfolioLocally();
+  const wasInitializedBefore = localStorage.getItem(STORAGE_INITIALIZED_KEY) === 'true';
+
+  await refreshExchangeRate(true);
+
+  if (hasSavedPortfolio && portfolio.length > 0) {
+    updateDashboard();
+    await refreshAllLivePrices(true);
+  } else if (!wasInitializedBefore) {
+    // Only load initial default data if the user has never visited or saved before
+    await Promise.all([
+      addPosition('BTC', 58500, 0.45, 'Conservative'),
+      addPosition('ETH', 2750, 3.5, 'Conservative'),
+      addPosition('SOL', 135, 25, 'Aggressive'),
+      addPosition('SUI', 1.45, 1200, 'Aggressive')
+    ]);
+  } else {
+    updateDashboard();
+  }
+
+  lastSyncTime = Date.now();
+});
+</script>
+</body>
+</html>
